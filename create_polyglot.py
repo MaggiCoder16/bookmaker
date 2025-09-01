@@ -12,37 +12,42 @@ def get_zobrist_key_hex(board):
     return format_zobrist_key_hex(chess.polyglot.zobrist_hash(board))
 
 class BookMove:
-    def __init__(self):
+    def __init__(self, move):
         self.weight = 0
-        self.move = None
+        self.move = move
 
 class BookPosition:
     def __init__(self):
         self.moves = {}
 
-    def get_move(self, uci):
-        return self.moves.setdefault(uci, BookMove())
+    def add_move(self, move, weight):
+        uci = move.uci()
+        if uci not in self.moves:
+            self.moves[uci] = BookMove(move)
+        self.moves[uci].weight += weight
 
 class Book:
     def __init__(self):
         self.positions = {}
 
     def get_position(self, zobrist_key_hex):
-        return self.positions.setdefault(zobrist_key_hex, BookPosition())
+        if zobrist_key_hex not in self.positions:
+            self.positions[zobrist_key_hex] = BookPosition()
+        return self.positions[zobrist_key_hex]
 
     def normalize_weights(self):
         for pos in self.positions.values():
             total_weight = sum(bm.weight for bm in pos.moves.values())
             if total_weight > 0:
                 for bm in pos.moves.values():
-                    bm.weight = int(bm.weight / total_weight * MAX_BOOK_WEIGHT)
+                    bm.weight = max(1, int(bm.weight / total_weight * MAX_BOOK_WEIGHT))
 
     def save_as_polyglot(self, path):
-        with open(path, 'wb') as outfile:
+        with open(path, "wb") as outfile:
             entries = []
             for key_hex, pos in self.positions.items():
                 zbytes = bytes.fromhex(key_hex)
-                for uci, bm in pos.moves.items():
+                for bm in pos.moves.values():
                     if bm.weight <= 0:
                         continue
                     move = bm.move
@@ -73,7 +78,9 @@ class LichessGame:
 def build_book_file(pgn_path, book_path):
     book = Book()
     with open(pgn_path) as pgn_file:
-        for i, game in enumerate(iter(lambda: chess.pgn.read_game(pgn_file), None), start=1):
+        for game in iter(lambda: chess.pgn.read_game(pgn_file), None):
+            if game is None:
+                break
             ligame = LichessGame(game)
 
             if game.headers.get("SetUp", "0") == "1" and "FEN" in game.headers:
@@ -86,12 +93,10 @@ def build_book_file(pgn_path, book_path):
             for move in game.mainline_moves():
                 if ply >= MAX_BOOK_PLIES:
                     break
-                uci = move.uci()
                 zobrist_key_hex = get_zobrist_key_hex(board)
                 position = book.get_position(zobrist_key_hex)
-                bm = position.get_move(uci)
-                bm.move = chess.Move.from_uci(uci)
-                bm.weight += score if board.turn == chess.WHITE else (2 - score)
+                weight = score if board.turn == chess.WHITE else (2 - score)
+                position.add_move(move, weight)
                 board.push(move)
                 ply += 1
 
@@ -100,13 +105,10 @@ def build_book_file(pgn_path, book_path):
 
 def dump_book(book_path, max_entries=50):
     with chess.polyglot.open_reader(book_path) as reader:
-        count = 0
-        for entry in reader:
-            move = entry.move  # ✅ fixed (not callable)
-            # we don’t have direct board reconstruction from entry, just show hash
+        for i, entry in enumerate(reader, start=1):
+            move = entry.move
             print(f"Key: {entry.key} | Move: {move.uci()} | Weight: {entry.weight} | Learn: {entry.learn}")
-            count += 1
-            if count >= max_entries:
+            if i >= max_entries:
                 break
 
 if __name__ == "__main__":
