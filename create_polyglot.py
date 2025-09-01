@@ -1,8 +1,6 @@
-
 import chess
 import chess.pgn
 import chess.polyglot
-import datetime
 
 MAX_BOOK_PLIES = 1000
 MAX_BOOK_WEIGHT = 10000
@@ -72,20 +70,10 @@ class LichessGame:
         res = self.result()
         return {"1-0": 2, "1/2-1/2": 1}.get(res, 0)
 
-def correct_castling_uci(uci, board):
-    if board.piece_at(chess.parse_square(uci[:2])).piece_type == chess.KING:
-        if uci == "e1g1": return "e1h1"
-        if uci == "e1c1": return "e1a1"
-        if uci == "e8g8": return "e8h8"
-        if uci == "e8c8": return "e8a8"
-    return uci
-
 def build_book_file(pgn_path, book_path):
     book = Book()
     with open(pgn_path) as pgn_file:
         for i, game in enumerate(iter(lambda: chess.pgn.read_game(pgn_file), None), start=1):
-            if i % 100 == 0:
-                print(f"Processed {i} games")
             ligame = LichessGame(game)
 
             if game.headers.get("SetUp", "0") == "1" and "FEN" in game.headers:
@@ -98,7 +86,7 @@ def build_book_file(pgn_path, book_path):
             for move in game.mainline_moves():
                 if ply >= MAX_BOOK_PLIES:
                     break
-                uci = correct_castling_uci(move.uci(), board)
+                uci = move.uci()
                 zobrist_key_hex = get_zobrist_key_hex(board)
                 position = book.get_position(zobrist_key_hex)
                 bm = position.get_move(uci)
@@ -110,5 +98,15 @@ def build_book_file(pgn_path, book_path):
     book.normalize_weights()
     book.save_as_polyglot(book_path)
 
+def dump_book(book_path, max_entries=50):
+    with open(book_path, "rb") as f:
+        with chess.polyglot.Reader(f) as reader:
+            for i, entry in enumerate(reader):
+                if i >= max_entries:
+                    break
+                print(f"FEN: {entry.board().fen()} | Move: {entry.move.uci()} | Weight: {entry.weight}")
+
 if __name__ == "__main__":
+    # Example usage
     build_book_file("forced-line.pgn", "main.bin")
+    dump_book("main.bin", 50)
