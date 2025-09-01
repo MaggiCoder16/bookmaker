@@ -99,14 +99,13 @@ def build_book_file(pgn_path, book_path):
     book.save_as_polyglot(book_path)
 
 def dump_book(book_path, max_entries=50):
-    with open(book_path, "rb") as f:
-        with chess.polyglot.Reader(f) as reader:
-            for i, entry in enumerate(reader):
-                if i >= max_entries:
-                    break
-                print(f"FEN: {entry.board().fen()} | Move: {entry.move.uci()} | Weight: {entry.weight}")
+    with chess.polyglot.open_reader(book_path) as reader:  # ✅ FIXED
+        for i, entry in enumerate(reader):
+            if i >= max_entries:
+                break
+            board = entry.board()
+            print(f"FEN: {board.fen()} | Move: {entry.move()} | Weight: {entry.weight}")
 
 if __name__ == "__main__":
-    # Example usage
     build_book_file("forced-line.pgn", "main.bin")
     dump_book("main.bin", 50)
