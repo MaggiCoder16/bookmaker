@@ -26,7 +26,7 @@ jobs:
     - name: Move .bin to engines/
       run: |
         mkdir -p engines
-        mv book.bin engines/
+        mv main.bin engines/
 
     - name: Upload book.bin as artifact
       uses: actions/upload-artifact@v4
