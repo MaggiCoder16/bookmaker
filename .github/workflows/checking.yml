@@ -5,7 +5,7 @@ on:
   push:
     paths:
       - 'main.bin'
-      - 'draw43.pgn'
+      - 'forced-line.pgn'
       - 'check.py'
 
 jobs:
