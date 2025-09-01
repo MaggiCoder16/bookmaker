@@ -101,10 +101,10 @@ def build_book_file(pgn_path, book_path):
 def dump_book(book_path, max_entries=50):
     with chess.polyglot.open_reader(book_path) as reader:
         count = 0
-        board = chess.Board()
-        for entry in reader.find_all(board):
-            move = entry.move()
-            print(f"FEN: {board.fen()} | Move: {board.san(move)} | Weight: {entry.weight}")
+        for entry in reader:
+            move = entry.move  # ✅ fixed (not callable)
+            # we don’t have direct board reconstruction from entry, just show hash
+            print(f"Key: {entry.key} | Move: {move.uci()} | Weight: {entry.weight} | Learn: {entry.learn}")
             count += 1
             if count >= max_entries:
                 break
