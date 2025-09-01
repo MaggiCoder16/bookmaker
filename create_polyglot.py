@@ -19,11 +19,11 @@ def build_book_file(pgn_path: str, book_path: str):
                 board = chess.Board()
 
             for move in game.mainline_moves():
-                # Always write entry, even if same position repeats
-                entry = chess.polyglot.Entry.from_board(
-                    board=board,
+                # Create entry manually
+                entry = chess.polyglot.Entry(
+                    key=chess.polyglot.zobrist_hash(board),
                     move=move,
-                    weight=1,   # fixed weight = 1
+                    weight=1,
                     learn=0
                 )
                 entries.append(entry)
