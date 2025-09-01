@@ -19,10 +19,10 @@ def build_book_file(pgn_path: str, book_path: str):
                 board = chess.Board()
 
             for move in game.mainline_moves():
-                # Create entry manually
+                raw_move = chess.polyglot.encode_move(move, board)
                 entry = chess.polyglot.Entry(
                     key=chess.polyglot.zobrist_hash(board),
-                    move=move,
+                    raw_move=raw_move,
                     weight=1,
                     learn=0
                 )
@@ -35,14 +35,15 @@ def build_book_file(pgn_path: str, book_path: str):
         for entry in entries:
             writer.write(entry)
 
-    print(f"Saved {len(entries)} moves to book: {book_path}")
+    print(f"✅ Saved {len(entries)} moves to book: {book_path}")
 
 
 def dump_book(book_path: str, max_entries: int = 50):
     with chess.polyglot.open_reader(book_path) as reader:
         for i, entry in enumerate(reader, start=1):
+            move = chess.polyglot.decode_move(entry.raw_move, chess.Board())  # decoding for display
             print(
-                f"Key: {entry.key} | Move: {entry.move.uci()} | "
+                f"Key: {entry.key} | Move: {move.uci()} | "
                 f"Weight: {entry.weight} | Learn: {entry.learn}"
             )
             if i >= max_entries:
