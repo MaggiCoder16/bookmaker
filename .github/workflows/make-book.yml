@@ -1,4 +1,4 @@
-name: Build Polyglot Book
+name: Build Exact Book
 
 on:
   workflow_dispatch:
@@ -22,29 +22,24 @@ jobs:
           python-version: 3.11
 
       - name: Install dependencies
-        run: pip install chess requests
+        run: pip install chess
 
-      - name: Install Polyglot
-        run: |
-          sudo apt update
-          sudo apt install polyglot
-
-      - name: Generate main.bin
+      - name: Build main.bin from PGN
         run: |
           mkdir -p engines
-          polyglot make-book -pgn forced-line.pgn -bin engines/main.bin -min-game 1 -max-ply 100
+          python create_polyglot.py forced-line.pgn engines/main.bin
 
       - name: Check main.bin size
         run: |
           stat engines/main.bin
           SIZE=$(stat --format="%s" engines/main.bin)
           if [ $((SIZE % 16)) -ne 0 ]; then
-            echo "ERROR: book1001.bin size not multiple of 16"
+            echo "ERROR: main.bin size not multiple of 16"
             exit 1
           fi
-          echo "main.bin is valid"
+          echo "✅ main.bin is valid"
 
-      - name: Upload book.bin as artifact
+      - name: Upload main.bin as artifact
         uses: actions/upload-artifact@v4
         with:
           name: bookforwin
