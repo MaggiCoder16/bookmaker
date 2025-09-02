@@ -1,96 +1,55 @@
 import chess
 import chess.pgn
-import datetime
+import sys
 
-MAX_BOOK_PLIES = 100
+MAX_PLY = 100
 
-def format_zobrist_key_hex(zobrist_key):
-    return f"{zobrist_key:016x}"
+def move_to_bytes(move: chess.Move) -> bytes:
+    mi = move.to_square + (move.from_square << 6)
+    if move.promotion:
+        mi += (move.promotion - 1) << 12
+    return mi.to_bytes(2, byteorder="big")
 
-def get_zobrist_key_hex(board):
-    # Modern python-chess compatible substitute for Zobrist key
-    return format_zobrist_key_hex(hash(board.fen()) & 0xFFFFFFFFFFFFFFFF)
+def board_to_zobrist_hex(board: chess.Board) -> str:
+    """Compute Zobrist key as 16-byte hex for PolyGlot."""
+    return f"{chess.polyglot.zobrist_hash(board):016x}"
 
-class BookMove:
-    def __init__(self, move):
-        self.weight = 1  # always 1
-        self.move = move
+def create_bin(pgn_path: str, bin_path: str):
+    entries = []
 
-class BookPosition:
-    def __init__(self):
-        self.moves = []  # store every move, even repeated
-        self.fen = ""
-
-    def add_move(self, move):
-        self.moves.append(BookMove(move))
-
-class Book:
-    def __init__(self):
-        self.positions = []  # list of (zobrist_key_hex, BookPosition)
-
-    def add_position(self, zobrist_key_hex, move):
-        pos = BookPosition()
-        pos.add_move(move)
-        self.positions.append((zobrist_key_hex, pos))
-
-    def save_as_polyglot(self, path):
-        with open(path, 'wb') as outfile:
-            for key_hex, pos in self.positions:
-                zbytes = bytes.fromhex(key_hex)
-                for bm in pos.moves:
-                    move = bm.move
-                    mi = move.to_square + (move.from_square << 6)
-                    if move.promotion:
-                        mi += ((move.promotion - 1) << 12)
-                    mbytes = mi.to_bytes(2, byteorder="big")
-                    wbytes = (1).to_bytes(2, byteorder="big")  # weight = 1
-                    lbytes = (0).to_bytes(4, byteorder="big")  # learn = 0
-                    outfile.write(zbytes + mbytes + wbytes + lbytes)
-        print(f"Saved {len(self.positions)} positions to book: {path}")
-
-class LichessGame:
-    def __init__(self, game):
-        self.game = game
-
-    def result(self):
-        return self.game.headers.get("Result", "*")
-
-    def score(self):
-        return 1  # ignored, all moves weight = 1
-
-def correct_castling_uci(uci, board):
-    if board.piece_at(chess.parse_square(uci[:2])).piece_type == chess.KING:
-        if uci == "e1g1": return "e1h1"
-        if uci == "e1c1": return "e1a1"
-        if uci == "e8g8": return "e8h8"
-        if uci == "e8c8": return "e8a8"
-    return uci
-
-def build_book_file(pgn_path="forced-line.pgn", book_path="main.bin"):
-    book = Book()
-    with open(pgn_path) as pgn_file:
-        for i, game in enumerate(iter(lambda: chess.pgn.read_game(pgn_file), None), start=1):
+    with open(pgn_path) as f:
+        for game in iter(lambda: chess.pgn.read_game(f), None):
             if game is None:
                 break
-            if i % 100 == 0:
-                print(f"Processed {i} games")
 
             board = game.board()
             ply = 0
 
             for move in game.mainline_moves():
-                if ply >= MAX_BOOK_PLIES:
+                if ply >= MAX_PLY:
                     break
 
-                uci = correct_castling_uci(move.uci(), board)
-                move_obj = chess.Move.from_uci(uci)
-                zobrist_key_hex = get_zobrist_key_hex(board)
-                book.add_position(zobrist_key_hex, move_obj)  # no deduplication, weight=1
+                zbytes = bytes.fromhex(f"{chess.polyglot.zobrist_hash(board):016x}")
+                mbytes = move_to_bytes(move)
+                wbytes = (1).to_bytes(2, byteorder="big")
+                lbytes = (0).to_bytes(4, byteorder="big")
+                entries.append(zbytes + mbytes + wbytes + lbytes)
 
                 board.push(move)
                 ply += 1
 
-    book.save_as_polyglot(book_path)
+    # Sort by Zobrist key + move (optional)
+    entries.sort(key=lambda e: (e[:8], e[10:12]))
+
+    with open(bin_path, "wb") as f:
+        for entry in entries:
+            f.write(entry)
+
+    print(f"Saved {len(entries)} moves to {bin_path}")
 
 if __name__ == "__main__":
-    build_book_file()
+    if len(sys.argv) != 3:
+        print("Usage: python create_polyglot.py input.pgn output.bin")
+        sys.exit(1)
+
+    create_bin(sys.argv[1], sys.argv[2])
