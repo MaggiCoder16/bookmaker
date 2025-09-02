@@ -10,12 +10,9 @@ def move_to_bytes(move: chess.Move) -> bytes:
         mi += (move.promotion - 1) << 12
     return mi.to_bytes(2, byteorder="big")
 
-def board_to_zobrist_hex(board: chess.Board) -> str:
-    """Compute Zobrist key as 16-byte hex for PolyGlot."""
-    return f"{chess.polyglot.zobrist_hash(board):016x}"
-
 def create_bin(pgn_path: str, bin_path: str):
     entries = []
+    key_counter = 0
 
     with open(pgn_path) as f:
         for game in iter(lambda: chess.pgn.read_game(f), None):
@@ -29,7 +26,7 @@ def create_bin(pgn_path: str, bin_path: str):
                 if ply >= MAX_PLY:
                     break
 
-                zbytes = bytes.fromhex(f"{chess.polyglot.zobrist_hash(board):016x}")
+                zbytes = key_counter.to_bytes(8, byteorder="big")
                 mbytes = move_to_bytes(move)
                 wbytes = (1).to_bytes(2, byteorder="big")
                 lbytes = (0).to_bytes(4, byteorder="big")
@@ -37,8 +34,9 @@ def create_bin(pgn_path: str, bin_path: str):
 
                 board.push(move)
                 ply += 1
+                key_counter += 1
 
-    # Sort by Zobrist key + move (optional)
+    # Sort by “key” to match PolyGlot expectation
     entries.sort(key=lambda e: (e[:8], e[10:12]))
 
     with open(bin_path, "wb") as f:
