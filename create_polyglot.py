@@ -2,7 +2,7 @@ import chess
 import chess.pgn
 import datetime
 
-MAX_BOOK_PLIES = 20
+MAX_BOOK_PLIES = 100
 
 def format_zobrist_key_hex(zobrist_key):
     return f"{zobrist_key:016x}"
