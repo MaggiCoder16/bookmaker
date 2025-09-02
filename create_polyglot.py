@@ -1,3 +1,4 @@
+import os
 import chess
 import chess.pgn
 import chess.polyglot
@@ -83,6 +84,9 @@ def correct_castling_uci(uci, board):
     return uci
 
 def build_book_file(pgn_path, book_path):
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(book_path), exist_ok=True)
+
     book = Book()
     with open(pgn_path) as pgn_file:
         for i, game in enumerate(iter(lambda: chess.pgn.read_game(pgn_file), None), start=1):
@@ -110,4 +114,4 @@ def build_book_file(pgn_path, book_path):
     book.save_as_polyglot(book_path)
 
 if __name__ == "__main__":
-    build_book_file("forced-line.pgn", "main.bin")
+    build_book_file("forced-line.pgn", "engines/main.bin")
