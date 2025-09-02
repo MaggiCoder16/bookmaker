@@ -1,35 +1,51 @@
-name: Build .bin Book
+name: Build Polyglot Book
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 1'
 
 jobs:
-  convert:
+  build:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-    - name: Install Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
 
-    - name: Install dependencies
-      run: |
-        pip install chess requests
+      - name: Install dependencies
+        run: pip install chess requests
 
-    - name: Create Polyglot book
-      run: python create_polyglot.py
+      - name: Install Polyglot
+        run: |
+          sudo apt update
+          sudo apt install polyglot
 
-    - name: Move .bin to engines/
-      run: |
-        mkdir -p engines
-        mv main.bin engines/
+      - name: Generate main.bin
+        run: |
+          mkdir -p engines
+          polyglot make-book -pgn forced-line.pgn -bin engines/main.bin -min-game 1 -max-ply 100
 
-    - name: Upload book.bin as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: bookforwin
-        path: engines/main.bin
+      - name: Check main.bin size
+        run: |
+          stat engines/main.bin
+          SIZE=$(stat --format="%s" engines/main.bin)
+          if [ $((SIZE % 16)) -ne 0 ]; then
+            echo "ERROR: book1001.bin size not multiple of 16"
+            exit 1
+          fi
+          echo "main.bin is valid"
+
+      - name: Upload book.bin as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bookforwin
+          path: engines/main.bin
